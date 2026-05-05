@@ -13,28 +13,17 @@
   }: let
     inherit (nixpkgs) lib;
     eachSystem = lib.genAttrs (import systems);
-  in {
-    devShells = eachSystem (system: let
-      pkgs = import nixpkgs {inherit system;};
-    in
-      pkgs.mkShell {
-        buildInputs = with pkgs; [
-          rustup
-          pkg-config
-          android-tools
-        ];
-      });
 
-    packages = eachSystem (system: let
-      pkgs = import nixpkgs {inherit system;};
-    in {
-      default = pkgs.rustPlatform.buildRustPackage {
+    mkAdbMcp = pkgs:
+      pkgs.rustPlatform.buildRustPackage {
         pname = "adb-mcp";
         version = "0.1.0";
         src = ./.;
         cargoLock.lockFile = ./Cargo.lock;
 
-        buildInputs = with pkgs; [pkg-config];
+        nativeBuildInputs = with pkgs; [
+          pkg-config
+        ];
 
         CARGO_PROFILE_RELEASE_OPT_LEVEL = 3;
         CARGO_PROFILE_RELEASE_LTO = "true";
@@ -47,6 +36,28 @@
           mainProgram = "adb-mcp";
         };
       };
+  in {
+    overlays.default = final: prev: {
+      adb-mcp = mkAdbMcp final;
+    };
+
+    devShells = eachSystem (system: let
+      pkgs = import nixpkgs {inherit system;};
+    in {
+      default = pkgs.mkShell {
+        buildInputs = with pkgs; [
+          rustup
+          pkg-config
+          android-tools
+        ];
+      };
+    });
+
+    packages = eachSystem (system: let
+      pkgs = import nixpkgs {inherit system;};
+    in rec {
+      adb-mcp = mkAdbMcp pkgs;
+      default = adb-mcp;
     });
   };
 }
